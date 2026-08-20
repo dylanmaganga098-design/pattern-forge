@@ -91,7 +91,13 @@ export function runAnalysis(text: string): RunOutcome {
           row.entry = math.entry;
           row.sl = math.sl;
           row.tp = math.tp;
-          if (math.invalidReason || math.rr === undefined) {
+          const barAtr = atr[candle.index];
+          if (barAtr !== undefined && barAtr > 0 && Math.abs(math.tp - math.entry) > 10 * barAtr) {
+            // A target more than 10 ATR away is not a real structure target.
+            row.rr = undefined;
+            row.result = "FAIL";
+            row.reason = "INVALID: TP distance implausible";
+          } else if (math.invalidReason || math.rr === undefined) {
             // No RR at all when risk is non-positive; never report a faked positive.
             row.rr = undefined;
             row.result = "FAIL";
