@@ -1,4 +1,5 @@
 import { runAnalysis } from "@/lib/analyzer/run";
+import { STRATEGIES } from "@/lib/analyzer/strategies";
 import type { ResultRow } from "@/lib/analyzer/types";
 
 export type TriggerOutcome = "TP" | "SL" | "OPEN";
@@ -39,6 +40,22 @@ export interface BacktestState {
 
 export const STORAGE_KEY = "forexlens.backtest.state";
 
+/** Every strategy starts at zero so all 13 appear in every report. */
+export function seededStats(): Record<string, StrategyStats> {
+  const stats: Record<string, StrategyStats> = {};
+  for (const strategy of STRATEGIES) {
+    stats[strategy.id] = {
+      strategyId: strategy.id,
+      strategy: strategy.name,
+      triggers: 0,
+      tpHits: 0,
+      slHits: 0,
+      open: 0,
+    };
+  }
+  return stats;
+}
+
 export function emptyState(symbol: string): BacktestState {
   return {
     symbol,
@@ -46,7 +63,7 @@ export function emptyState(symbol: string): BacktestState {
     lastCompletedDay: null,
     days: [],
     skipped: [],
-    stats: {},
+    stats: seededStats(),
   };
 }
 
@@ -57,7 +74,11 @@ export function loadState(symbol: string): BacktestState {
     if (!raw) return emptyState(symbol);
     const parsed = JSON.parse(raw) as BacktestState;
     if (!parsed || parsed.symbol !== symbol) return emptyState(symbol);
-    return { ...emptyState(symbol), ...parsed };
+    return {
+      ...emptyState(symbol),
+      ...parsed,
+      stats: { ...seededStats(), ...(parsed.stats ?? {}) },
+    };
   } catch {
     return emptyState(symbol);
   }
