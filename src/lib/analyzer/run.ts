@@ -40,6 +40,9 @@ export function runAnalysis(text: string): RunOutcome {
   const byDatetime = buildIndex(candles);
   computeMarketStructure(candles, byDatetime);
 
+  const atr = atrSeries(candles);
+  const pivots = findPivots(candles);
+
   const ctx: AnalysisContext = {
     meta: parsed.meta,
     candles,
@@ -48,6 +51,13 @@ export function runAnalysis(text: string): RunOutcome {
     ema200: ema(candles, 200),
     blocks: sessionBlocks(candles),
     spread: parseSpread(parsed.meta.spread_convention),
+    atr,
+    pivotHighs: pivots.highs,
+    pivotLows: pivots.lows,
+    daily: dailyAggregates(candles),
+    asian: asianRanges(candles),
+    openingRanges: openingRanges(candles),
+    consumed: new Map(),
   };
 
   const results: ResultRow[] = [];
