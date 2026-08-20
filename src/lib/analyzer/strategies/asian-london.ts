@@ -1,59 +1,90 @@
-import { blockContaining } from "../indicators";
-import { at, fail, pass, requireFields, valid } from "./util";
+import { eatDay } from "../time";
+import {
+  at,
+  consume,
+  fail,
+  isAtr,
+  isConsumed,
+  pass,
+  requireAtr,
+  reliable,
+  valid,
+} from "./util";
 import type { StrategyCheck } from "../types";
 
+const ID = "asian_london";
+
+/**
+ * Spec #6 — the EAT Asian range is swept during London (wick beyond), then a
+ * later London bar *closes* back inside the range, giving a directional bias.
+ * The day's range is consumed once used.
+ */
 export const asianLondon: StrategyCheck = {
-  id: "asian_london",
+  id: ID,
   name: "Asian Sweep + London Reclaim",
   run: (ctx, i) => {
     const c = ctx.candles[i];
     if (!valid(c)) return fail("INVALID: missing core fields");
-    const missing = requireFields(c, ["session", "isReliable"]);
-    if (missing) return missing;
-    if (c.session !== "asian") return fail(`session = ${c.session} (sweep must occur in asian)`);
-    if (!c.isReliable) return fail("sweep candle has is_reliable = false");
-    const block = blockContaining(ctx.blocks, i);
-    if (!block) return fail("candle is not inside a resolvable session block");
-    if (i === block.start) return fail("first asian candle — no prior asian high/low to sweep");
+    if (!reliable(c)) return fail("is_reliable = false");
+    if (c.session !== "london") return fail(`session = ${c.session} (reclaim must occur in london)`);
+    const day = eatDay(c.datetime);
+    const range = ctx.asian.get(day);
+    if (!range) return fail(`no asian session range recorded for ${day}`);
+    const atrValue = requireAtr(ctx, i);
+    if (!isAtr(atrValue)) return atrValue;
 
-    let priorHigh = -Infinity;
-    let priorLow = Infinity;
-    for (let j = block.start; j < i; j++) {
-      const prior = at(ctx, j);
-      if (!valid(prior)) continue;
-      priorHigh = Math.max(priorHigh, prior.high!);
-      priorLow = Math.min(priorLow, prior.low!);
-    }
-    if (!Number.isFinite(priorHigh)) return fail("no valid earlier asian candles to define the range");
+    const upKey = `${day}:high`;
+    const downKey = `${day}:low`;
 
-    const sweptHigh = c.high! > priorHigh;
-    const sweptLow = c.low! < priorLow;
-    if (!sweptHigh && !sweptLow) return fail("no sweep beyond the asian session high/low");
-
-    const london = ctx.blocks.find((b) => b.session === "london" && b.start > block.end);
-    if (!london) return fail("no london session follows this asian session");
-    for (let k = london.start; k <= Math.min(london.end, london.start + 2); k++) {
-      const r = at(ctx, k);
-      if (!valid(r)) continue;
-      if (sweptHigh && r.close! < priorHigh) {
-        return pass(
-          `asian sweep above ${priorHigh} reclaimed in london at ${r.datetime}`,
-          "short",
-          r.close!,
-          c.high!,
-          priorLow,
-        );
+    let sweptHighAt: number | undefined;
+    let sweptLowAt: number | undefined;
+    let extremeHigh = -Infinity;
+    let extremeLow = Infinity;
+    for (let k = range.end + 1; k <= i; k++) {
+      const bar = at(ctx, k);
+      if (!valid(bar) || bar.session !== "london") continue;
+      if (bar.high! > range.high) {
+        sweptHighAt = k;
+        extremeHigh = Math.max(extremeHigh, bar.high!);
       }
-      if (sweptLow && r.close! > priorLow) {
-        return pass(
-          `asian sweep below ${priorLow} reclaimed in london at ${r.datetime}`,
-          "long",
-          r.close!,
-          c.low!,
-          priorHigh,
-        );
+      if (bar.low! < range.low) {
+        sweptLowAt = k;
+        extremeLow = Math.min(extremeLow, bar.low!);
       }
     }
-    return fail("no london reclaim within the first 3 london candles");
+
+    const inside = c.close! <= range.high && c.close! >= range.low;
+    if (sweptHighAt !== undefined && !isConsumed(ctx, ID, upKey)) {
+      if (!inside) return fail("asian high swept but this bar has not closed back inside the range");
+      consume(ctx, ID, upKey);
+      const entry = c.close!;
+      const sl = extremeHigh + 0.1 * atrValue;
+      const tp = range.low;
+      if (!(tp < entry)) return fail("asian low is not below the reclaim close");
+      return pass(
+        `asian high ${range.high.toFixed(3)} swept in london and reclaimed — bearish bias`,
+        "short",
+        entry,
+        sl,
+        tp,
+      );
+    }
+    if (sweptLowAt !== undefined && !isConsumed(ctx, ID, downKey)) {
+      if (!inside) return fail("asian low swept but this bar has not closed back inside the range");
+      consume(ctx, ID, downKey);
+      const entry = c.close!;
+      const sl = extremeLow - 0.1 * atrValue;
+      const tp = range.high;
+      if (!(tp > entry)) return fail("asian high is not above the reclaim close");
+      return pass(
+        `asian low ${range.low.toFixed(3)} swept in london and reclaimed — bullish bias`,
+        "long",
+        entry,
+        sl,
+        tp,
+      );
+    }
+
+    return fail("no unconsumed asian sweep to reclaim in this london session");
   },
 };
