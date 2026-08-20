@@ -115,9 +115,9 @@ export function parseCsv(text: string): ParseResult {
     if (braceIndex === -1) throw new Error("no json object on metadata line");
     const first = firstLine.slice(braceIndex).trim();
     const parsed: unknown = JSON.parse(first);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not object");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new Error("not object");
     metaRaw = parsed as Record<string, unknown>;
-
   } catch {
     return {
       candles: [],
@@ -139,7 +139,8 @@ export function parseCsv(text: string): ParseResult {
   }
 
   const sectionConvention =
-    metaRaw["section_marker_convention"] === undefined || metaRaw["section_marker_convention"] === null
+    metaRaw["section_marker_convention"] === undefined ||
+    metaRaw["section_marker_convention"] === null
       ? undefined
       : String(metaRaw["section_marker_convention"]).trim();
 

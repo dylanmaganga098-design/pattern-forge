@@ -11,7 +11,10 @@ export interface StatusEvaluation {
 
 function touched(candle: Candle, level: number): boolean {
   return (
-    candle.low !== undefined && candle.high !== undefined && candle.low <= level && candle.high >= level
+    candle.low !== undefined &&
+    candle.high !== undefined &&
+    candle.low <= level &&
+    candle.high >= level
   );
 }
 
@@ -40,17 +43,27 @@ export function evaluateSetupStatus(
         filled = true;
         // Same-candle TP/SL after the fill still resolves the setup.
         if (touched(candle, row.tp)) {
-          return { setupStatus: "RESOLVED", candlesSinceTrigger, statusNote: `TP hit at ${candle.datetime}` };
+          return {
+            setupStatus: "RESOLVED",
+            candlesSinceTrigger,
+            statusNote: `TP hit at ${candle.datetime}`,
+          };
         }
         if (touched(candle, row.sl)) {
-          return { setupStatus: "RESOLVED", candlesSinceTrigger, statusNote: `SL hit at ${candle.datetime}` };
+          return {
+            setupStatus: "RESOLVED",
+            candlesSinceTrigger,
+            statusNote: `SL hit at ${candle.datetime}`,
+          };
         }
         continue;
       }
       barsWaiting++;
       // Price broke past the stop without ever filling: the setup is dead.
       const brokeStop =
-        row.side === "short" ? (candle.high ?? -Infinity) >= row.sl : (candle.low ?? Infinity) <= row.sl;
+        row.side === "short"
+          ? (candle.high ?? -Infinity) >= row.sl
+          : (candle.low ?? Infinity) <= row.sl;
       if (brokeStop) {
         return {
           setupStatus: "RESOLVED",
@@ -69,15 +82,27 @@ export function evaluateSetupStatus(
     }
 
     if (touched(candle, row.tp)) {
-      return { setupStatus: "RESOLVED", candlesSinceTrigger, statusNote: `TP hit at ${candle.datetime}` };
+      return {
+        setupStatus: "RESOLVED",
+        candlesSinceTrigger,
+        statusNote: `TP hit at ${candle.datetime}`,
+      };
     }
     if (touched(candle, row.sl)) {
-      return { setupStatus: "RESOLVED", candlesSinceTrigger, statusNote: `SL hit at ${candle.datetime}` };
+      return {
+        setupStatus: "RESOLVED",
+        candlesSinceTrigger,
+        statusNote: `SL hit at ${candle.datetime}`,
+      };
     }
   }
 
   if (filled) {
-    return { setupStatus: "FILLED", candlesSinceTrigger, statusNote: "entry filled, trade still open" };
+    return {
+      setupStatus: "FILLED",
+      candlesSinceTrigger,
+      statusNote: "entry filled, trade still open",
+    };
   }
   return {
     setupStatus: "PENDING",

@@ -40,7 +40,9 @@ export const pivotRejection: StrategyCheck = {
         if (!(upper > WICK_BODY_RATIO * body)) {
           return fail(`upper wick:body below ${WICK_BODY_RATIO}:1 at ${level.name}`);
         }
-        const target = levels.filter((l) => l.value < c.close! - tolerance).sort((a, b) => b.value - a.value)[0];
+        const target = levels
+          .filter((l) => l.value < c.close! - tolerance)
+          .sort((a, b) => b.value - a.value)[0];
         if (!target) return fail(`no lower pivot level to target from ${level.name}`);
         return pass(
           `rejected ${level.name} at ${level.value.toFixed(3)} (prior EAT day ${prior.day})`,
@@ -54,7 +56,9 @@ export const pivotRejection: StrategyCheck = {
         if (!(lower > WICK_BODY_RATIO * body)) {
           return fail(`lower wick:body below ${WICK_BODY_RATIO}:1 at ${level.name}`);
         }
-        const target = levels.filter((l) => l.value > c.close! + tolerance).sort((a, b) => a.value - b.value)[0];
+        const target = levels
+          .filter((l) => l.value > c.close! + tolerance)
+          .sort((a, b) => a.value - b.value)[0];
         if (!target) return fail(`no higher pivot level to target from ${level.name}`);
         return pass(
           `rejected ${level.name} at ${level.value.toFixed(3)} (prior EAT day ${prior.day})`,

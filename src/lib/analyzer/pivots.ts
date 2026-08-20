@@ -67,7 +67,13 @@ export function findPivots(candles: Candle[], k = 2): { highs: Pivot[]; lows: Pi
       if (n.low <= c.low) isLow = false;
     }
     if (isHigh)
-      highs.push({ index: i, datetime: c.datetime, price: c.high, kind: "high", confirmedAt: i + k });
+      highs.push({
+        index: i,
+        datetime: c.datetime,
+        price: c.high,
+        kind: "high",
+        confirmedAt: i + k,
+      });
     if (isLow)
       lows.push({ index: i, datetime: c.datetime, price: c.low, kind: "low", confirmedAt: i + k });
   }

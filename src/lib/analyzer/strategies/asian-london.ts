@@ -1,15 +1,5 @@
 import { eatDay } from "../time";
-import {
-  at,
-  consume,
-  fail,
-  isAtr,
-  isConsumed,
-  pass,
-  requireAtr,
-  reliable,
-  valid,
-} from "./util";
+import { at, consume, fail, isAtr, isConsumed, pass, requireAtr, reliable, valid } from "./util";
 import type { StrategyCheck } from "../types";
 
 const ID = "asian_london";
@@ -26,7 +16,8 @@ export const asianLondon: StrategyCheck = {
     const c = ctx.candles[i];
     if (!valid(c)) return fail("INVALID: missing core fields");
     if (!reliable(c)) return fail("is_reliable = false");
-    if (c.session !== "london") return fail(`session = ${c.session} (reclaim must occur in london)`);
+    if (c.session !== "london")
+      return fail(`session = ${c.session} (reclaim must occur in london)`);
     const day = eatDay(c.datetime);
     const range = ctx.asian.get(day);
     if (!range) return fail(`no asian session range recorded for ${day}`);
@@ -55,7 +46,8 @@ export const asianLondon: StrategyCheck = {
 
     const inside = c.close! <= range.high && c.close! >= range.low;
     if (sweptHighAt !== undefined && !isConsumed(ctx, ID, upKey)) {
-      if (!inside) return fail("asian high swept but this bar has not closed back inside the range");
+      if (!inside)
+        return fail("asian high swept but this bar has not closed back inside the range");
       consume(ctx, ID, upKey);
       const entry = c.close!;
       const sl = extremeHigh + 0.1 * atrValue;

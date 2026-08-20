@@ -56,7 +56,9 @@ export function requireSwings(
     return { outcome: fail(`INVALID: unresolved swing reference [${swings.unresolved[0]}]`) };
   }
   if (swings.candles.length < minimum) {
-    return { outcome: fail(`insufficient resolved swings (${swings.candles.length} of ${minimum})`) };
+    return {
+      outcome: fail(`insufficient resolved swings (${swings.candles.length} of ${minimum})`),
+    };
   }
   return { swings };
 }
@@ -128,11 +130,7 @@ export function targetBelow(ctx: AnalysisContext, i: number, price: number): num
 }
 
 /** Nearest key level to `price` within `tolerance` (absolute, ATR-derived). */
-export function levelNear(
-  levels: Pivot[],
-  price: number,
-  tolerance: number,
-): Pivot | undefined {
+export function levelNear(levels: Pivot[], price: number, tolerance: number): Pivot | undefined {
   let best: Pivot | undefined;
   let bestDistance = Infinity;
   for (const level of levels) {

@@ -45,7 +45,12 @@ export function sessionBlocks(candles: Candle[]): SessionBlock[] {
   const blocks: SessionBlock[] = [];
   let current: SessionBlock | undefined;
   for (const candle of candles) {
-    if (!candle.session || candle.high === undefined || candle.low === undefined || candle.close === undefined) {
+    if (
+      !candle.session ||
+      candle.high === undefined ||
+      candle.low === undefined ||
+      candle.close === undefined
+    ) {
       current = undefined;
       continue;
     }

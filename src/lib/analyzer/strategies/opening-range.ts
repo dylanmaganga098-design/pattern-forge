@@ -34,7 +34,15 @@ export const openingRange: StrategyCheck = {
       if (!up && !down) continue;
       const boundary = up ? range.high : range.low;
 
-      if (closedBeyond(ctx, b, i - 1, up ? boundary - invalidation : boundary + invalidation, up ? "below" : "above")) {
+      if (
+        closedBeyond(
+          ctx,
+          b,
+          i - 1,
+          up ? boundary - invalidation : boundary + invalidation,
+          up ? "below" : "above",
+        )
+      ) {
         return fail(
           `breakout of ${boundary.toFixed(3)} invalidated — a bar closed beyond 0.5xATR back inside the range`,
         );
@@ -45,7 +53,9 @@ export const openingRange: StrategyCheck = {
       // Confirmation uses the close.
       const reclaimed = up ? c.close! > boundary : c.close! < boundary;
       if (!reclaimed) {
-        return fail(`retest bar closed ${c.close} through ${boundary.toFixed(3)} — failed breakout`);
+        return fail(
+          `retest bar closed ${c.close} through ${boundary.toFixed(3)} — failed breakout`,
+        );
       }
       const entry = c.close!;
       const sl = up

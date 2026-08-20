@@ -41,12 +41,14 @@ export const rangeRejection: StrategyCheck = {
     if (!top) return fail(`fewer than ${MIN_TOUCHES} swing highs clustered within 0.5xATR`);
     const bottom = cluster(lows, atrValue);
     if (!bottom) return fail(`fewer than ${MIN_TOUCHES} swing lows clustered within 0.5xATR`);
-    if (top.level - bottom.level <= atrValue) return fail("range is narrower than 1xATR — not tradeable");
+    if (top.level - bottom.level <= atrValue)
+      return fail("range is narrower than 1xATR — not tradeable");
     const tolerance = TOLERANCE_ATR * atrValue;
 
     // Tag with the wick, confirm with the close back inside the range.
     if (c.high! >= top.level - tolerance) {
-      if (!(c.close! < top.level)) return fail(`close ${c.close} did not return inside the range top`);
+      if (!(c.close! < top.level))
+        return fail(`close ${c.close} did not return inside the range top`);
       return pass(
         `rejection at range top ${top.level.toFixed(3)} (${top.touches} touches)`,
         "short",
@@ -56,7 +58,8 @@ export const rangeRejection: StrategyCheck = {
       );
     }
     if (c.low! <= bottom.level + tolerance) {
-      if (!(c.close! > bottom.level)) return fail(`close ${c.close} did not return inside the range bottom`);
+      if (!(c.close! > bottom.level))
+        return fail(`close ${c.close} did not return inside the range bottom`);
       return pass(
         `rejection at range bottom ${bottom.level.toFixed(3)} (${bottom.touches} touches)`,
         "long",

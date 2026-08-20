@@ -66,7 +66,8 @@ export const fvgFill: StrategyCheck = {
       const tp =
         (gapUp ? targetAbove(ctx, i, entry) : targetBelow(ctx, i, entry)) ??
         (gapUp ? entry + 3 * size : entry - 3 * size);
-      if (gapUp ? !(tp > entry) : !(tp < entry)) return fail("no structure target beyond the entry");
+      if (gapUp ? !(tp > entry) : !(tp < entry))
+        return fail("no structure target beyond the entry");
       consume(ctx, ID, key);
       return pass(
         `filled ${gapUp ? "bullish" : "bearish"} fair value gap from ${d.datetime}`,

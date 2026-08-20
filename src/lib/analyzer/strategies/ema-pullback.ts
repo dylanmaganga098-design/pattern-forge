@@ -1,4 +1,14 @@
-import { at, fail, isAtr, pass, requireAtr, reliable, targetAbove, targetBelow, valid } from "./util";
+import {
+  at,
+  fail,
+  isAtr,
+  pass,
+  requireAtr,
+  reliable,
+  targetAbove,
+  targetBelow,
+  valid,
+} from "./util";
 import type { StrategyCheck } from "../types";
 
 /** Small buffer allowed through the EMA on the pullback. */
@@ -20,7 +30,8 @@ export const emaPullback: StrategyCheck = {
     if (!isAtr(atrValue)) return atrValue;
     const ema50 = ctx.ema50[i];
     const ema200 = ctx.ema200[i];
-    if (ema50 === undefined) return fail("EMA-50 unavailable (fewer than 50 closes before this row)");
+    if (ema50 === undefined)
+      return fail("EMA-50 unavailable (fewer than 50 closes before this row)");
     if (ema200 === undefined)
       return fail("EMA-200 not warmed up (fewer than 200 closes before this row)");
 

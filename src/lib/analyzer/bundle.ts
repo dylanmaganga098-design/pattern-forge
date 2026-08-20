@@ -20,7 +20,9 @@ function inIframe(): boolean {
 }
 
 function slug(analysis: Analysis): string {
-  return exportFileName(analysis, "LIVE").replace(/^structure-scout_LIVE_/, "").replace(/\.txt$/, "");
+  return exportFileName(analysis, "LIVE")
+    .replace(/^structure-scout_LIVE_/, "")
+    .replace(/\.txt$/, "");
 }
 
 /** Zips the LIVE + HISTORY reports, the source CSV and the verifier verdict, then auto-downloads. */

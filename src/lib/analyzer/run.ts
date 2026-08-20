@@ -6,12 +6,7 @@ import { atrSeries, findPivots } from "./pivots";
 import { evaluateSetupStatus, isLive } from "./status";
 import { STRATEGIES } from "./strategies";
 import { buildIndex, computeMarketStructure } from "./structure";
-import type {
-  Analysis,
-  AnalysisContext,
-  OverlapEntry,
-  ResultRow,
-} from "./types";
+import type { Analysis, AnalysisContext, OverlapEntry, ResultRow } from "./types";
 
 export interface RunFailure {
   ok: false;
@@ -105,8 +100,8 @@ export function runAnalysis(text: string): RunOutcome {
           } else {
             row.rr = math.rr;
             if (math.rr <= RR_THRESHOLD) {
-            row.result = "FAIL";
-            row.reason = RR_FAIL_REASON;
+              row.result = "FAIL";
+              row.reason = RR_FAIL_REASON;
             }
           }
         }

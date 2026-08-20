@@ -28,11 +28,13 @@ export function engulfingOutcome(ctx: AnalysisContext, i: number): Outcome {
   if (!valid(c)) return fail("INVALID: missing core fields");
   const prev = at(ctx, i - 1);
   if (!valid(prev)) return fail("prior candle unavailable or INVALID: missing core fields");
-  if (!reliable(c) || !reliable(prev)) return fail("is_reliable = false on engulfing or prior candle");
+  if (!reliable(c) || !reliable(prev))
+    return fail("is_reliable = false on engulfing or prior candle");
   const atrValue = requireAtr(ctx, i);
   if (!isAtr(atrValue)) return atrValue;
   const shape = engulfingShape(prev, c);
-  if (!shape) return fail("body does not fully engulf the prior candle body in the opposite direction");
+  if (!shape)
+    return fail("body does not fully engulf the prior candle body in the opposite direction");
   const bullish = shape === "bullish";
   const tolerance = TOLERANCE_ATR * atrValue;
   const anchor = bullish ? Math.min(c.low!, prev.low!) : Math.max(c.high!, prev.high!);
