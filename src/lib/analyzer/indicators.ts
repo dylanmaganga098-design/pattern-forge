@@ -5,7 +5,7 @@ export function ema(candles: Candle[], period: number): (number | undefined)[] {
   const out: (number | undefined)[] = new Array(candles.length).fill(undefined);
   const k = 2 / (period + 1);
   let prev: number | undefined;
-  let seed: number[] = [];
+  const seed: number[] = [];
   for (let i = 0; i < candles.length; i++) {
     const close = candles[i]!.close;
     if (close === undefined) {
