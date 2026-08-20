@@ -1,36 +1,61 @@
-import { fail, nearestLevel, pass, requireFields, requireSwings, valid } from "./util";
+import { classicPivots, priorDay } from "../daily";
+import {
+  fail,
+  isAtr,
+  keyLevels,
+  levelNear,
+  pass,
+  pinBarShape,
+  requireAtr,
+  reliable,
+  targetAbove,
+  targetBelow,
+  valid,
+} from "./util";
 import type { AnalysisContext, Outcome, StrategyCheck } from "../types";
 
+const TOLERANCE_ATR = 0.1;
+
+/**
+ * Spec #10 — pin bar geometry (rejecting wick > 2x body, small opposite wick)
+ * whose extreme wick touches a key level within 0.1xATR. Key levels are
+ * confirmed fractal pivots plus the prior EAT day's classic pivots.
+ */
 export function pinBarOutcome(ctx: AnalysisContext, i: number): Outcome {
   const c = ctx.candles[i];
   if (!valid(c)) return fail("INVALID: missing core fields");
-  const missing = requireFields(c, [
-    "isReliable",
-    "upperWickPct",
-    "lowerWickPct",
-    "bodyPercentOfRange",
-  ]);
-  if (missing) return missing;
-  if (!c.isReliable) return fail("is_reliable = false");
-  if (c.bodyPercentOfRange! > 35) return fail(`body_percent_of_range ${c.bodyPercentOfRange}% above 35%`);
-  if (c.trend === "ranging") return fail("trend is ranging — no alignment possible");
-  const resolved = requireSwings(ctx, c, 1);
-  if ("outcome" in resolved) return resolved.outcome;
-  const swings = resolved.swings;
-  const bullish = c.trend === "bullish";
-  const wick = bullish ? c.lowerWickPct! : c.upperWickPct!;
-  if (wick < 60) {
-    return fail(`${bullish ? "lower" : "upper"}_wick_pct ${wick}% below 60%`);
+  if (!reliable(c)) return fail("is_reliable = false");
+  const atrValue = requireAtr(ctx, i);
+  if (!isAtr(atrValue)) return atrValue;
+  const shape = pinBarShape(c);
+  if (!shape) return fail("candle is not a pin bar (wick <= 2x body or opposite wick too large)");
+  const bullish = shape === "bullish";
+  const tolerance = TOLERANCE_ATR * atrValue;
+  const wickExtreme = bullish ? c.low! : c.high!;
+
+  let levelPrice = levelNear(keyLevels(ctx, i), wickExtreme, tolerance)?.price;
+  if (levelPrice === undefined) {
+    const prior = priorDay(ctx.daily, c);
+    if (prior) {
+      const p = classicPivots(prior);
+      levelPrice = [p.pp, p.r1, p.r2, p.s1, p.s2]
+        .filter((value) => Math.abs(value - wickExtreme) <= tolerance)
+        .sort((a, b) => Math.abs(a - wickExtreme) - Math.abs(b - wickExtreme))[0];
+    }
   }
-  const level = nearestLevel(swings, bullish ? c.low! : c.high!, 0.3);
-  if (!level) return fail("pin bar wick not at a similar_swing_refs level");
-  const tp = bullish ? Math.max(...swings.highs) : Math.min(...swings.lows);
-  if (bullish ? !(tp > c.close!) : !(tp < c.close!)) return fail("no opposing swing to target");
+  if (levelPrice === undefined) return fail("pin bar wick is not within 0.1xATR of a key level");
+
+  const entry = c.close!;
+  const sl = bullish ? c.low! - 0.1 * atrValue : c.high! + 0.1 * atrValue;
+  const tp =
+    (bullish ? targetAbove(ctx, i, entry) : targetBelow(ctx, i, entry)) ??
+    (bullish ? entry + 3 * atrValue : entry - 3 * atrValue);
+  if (bullish ? !(tp > entry) : !(tp < entry)) return fail("no structure target beyond the entry");
   return pass(
-    `pin bar at swing level ${level.level} aligned with ${c.trend} trend`,
+    `${shape} pin bar rejecting key level ${levelPrice.toFixed(3)}`,
     bullish ? "long" : "short",
-    c.close!,
-    bullish ? c.low! : c.high!,
+    entry,
+    sl,
     tp,
   );
 }
