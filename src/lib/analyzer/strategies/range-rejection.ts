@@ -1,39 +1,70 @@
-import { fail, pass, requireFields, requireSwings, valid } from "./util";
+import { confirmedBefore } from "../pivots";
+import { fail, isAtr, pass, requireAtr, reliable, valid } from "./util";
 import type { StrategyCheck } from "../types";
 
-function clustered(values: number[]): boolean {
-  if (values.length < 3) return false;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  return max === 0 ? true : (max - min) / Math.abs(max) <= 0.003;
+const LOOKBACK = 40;
+const CLUSTER_ATR = 0.5;
+const MIN_TOUCHES = 2;
+const TOLERANCE_ATR = 0.15;
+
+function cluster(prices: number[], atr: number): { level: number; touches: number } | undefined {
+  if (prices.length < MIN_TOUCHES) return undefined;
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  if ((max - min) / atr >= CLUSTER_ATR) return undefined;
+  return { level: prices.reduce((a, b) => a + b, 0) / prices.length, touches: prices.length };
 }
 
+/**
+ * Spec #8 — a horizontal range needs >=2 clustered touches (within 0.5xATR) on
+ * each boundary. A bar whose wick tags a boundary and whose close returns
+ * inside the range is the rejection entry.
+ */
 export const rangeRejection: StrategyCheck = {
   id: "range_rejection",
   name: "Horizontal Range + Boundary Rejection",
   run: (ctx, i) => {
     const c = ctx.candles[i];
     if (!valid(c)) return fail("INVALID: missing core fields");
-    const missing = requireFields(c, ["isReliable", "upperWickPct", "lowerWickPct"]);
-    if (missing) return missing;
-    if (!c.isReliable) return fail("is_reliable = false");
-    const resolved = requireSwings(ctx, c, 3);
-    if ("outcome" in resolved) return resolved.outcome;
-    const swings = resolved.swings;
-    if (!clustered(swings.highs)) return fail("fewer than 3 swing highs within 0.3% of each other");
-    if (!clustered(swings.lows)) return fail("fewer than 3 swing lows within 0.3% of each other");
-    const top = Math.max(...swings.highs);
-    const bottom = Math.min(...swings.lows);
+    if (!reliable(c)) return fail("is_reliable = false");
+    const atrValue = requireAtr(ctx, i);
+    if (!isAtr(atrValue)) return atrValue;
 
-    if (c.high! >= bottom + (top - bottom) * 0.9) {
-      if (c.upperWickPct! < 50) return fail(`upper_wick_pct ${c.upperWickPct}% below 50% at range top`);
-      return pass(`rejection at range top ${top}`, "short", c.close!, c.high!, bottom);
+    const from = i - LOOKBACK;
+    const highs = confirmedBefore(ctx.pivotHighs, i)
+      .filter((p) => p.index >= from)
+      .map((p) => p.price);
+    const lows = confirmedBefore(ctx.pivotLows, i)
+      .filter((p) => p.index >= from)
+      .map((p) => p.price);
+    const top = cluster(highs, atrValue);
+    if (!top) return fail(`fewer than ${MIN_TOUCHES} swing highs clustered within 0.5xATR`);
+    const bottom = cluster(lows, atrValue);
+    if (!bottom) return fail(`fewer than ${MIN_TOUCHES} swing lows clustered within 0.5xATR`);
+    if (top.level - bottom.level <= atrValue) return fail("range is narrower than 1xATR — not tradeable");
+    const tolerance = TOLERANCE_ATR * atrValue;
+
+    // Tag with the wick, confirm with the close back inside the range.
+    if (c.high! >= top.level - tolerance) {
+      if (!(c.close! < top.level)) return fail(`close ${c.close} did not return inside the range top`);
+      return pass(
+        `rejection at range top ${top.level.toFixed(3)} (${top.touches} touches)`,
+        "short",
+        c.close!,
+        c.high! + 0.1 * atrValue,
+        bottom.level,
+      );
     }
-    if (c.low! <= bottom + (top - bottom) * 0.1) {
-      if (c.lowerWickPct! < 50)
-        return fail(`lower_wick_pct ${c.lowerWickPct}% below 50% at range bottom`);
-      return pass(`rejection at range bottom ${bottom}`, "long", c.close!, c.low!, top);
+    if (c.low! <= bottom.level + tolerance) {
+      if (!(c.close! > bottom.level)) return fail(`close ${c.close} did not return inside the range bottom`);
+      return pass(
+        `rejection at range bottom ${bottom.level.toFixed(3)} (${bottom.touches} touches)`,
+        "long",
+        c.close!,
+        c.low! - 0.1 * atrValue,
+        top.level,
+      );
     }
-    return fail("candle not at a range boundary");
+    return fail("candle wick did not tag either range boundary");
   },
 };
