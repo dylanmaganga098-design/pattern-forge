@@ -1,74 +1,91 @@
+import { confirmedBefore } from "../pivots";
 import {
   at,
+  consume,
   fail,
-  isDisplacement,
+  isAtr,
+  isConsumed,
+  levelKey,
   pass,
-  requireFields,
-  requireSwings,
-  structureAbove,
-  structureBelow,
+  requireAtr,
+  reliable,
+  targetAbove,
+  targetBelow,
   valid,
 } from "./util";
 import type { StrategyCheck } from "../types";
 
+const ID = "bos_retest";
+const RETEST_WINDOW = 20;
+const BUFFER_ATR = 0.15;
+
+/**
+ * Spec #7 — a bar *closes* beyond the most recent significant swing (BOS), then
+ * a later bar wicks back to the broken level and closes in the breakout
+ * direction. Each broken level is consumed after it produces its retest entry.
+ */
 export const bosRetest: StrategyCheck = {
-  id: "bos_retest",
+  id: ID,
   name: "Break of Structure + Retest",
   run: (ctx, i) => {
     const c = ctx.candles[i];
     if (!valid(c)) return fail("INVALID: missing core fields");
-    const missing = requireFields(c, [
-      "displacement",
-      "isReliable",
-      "swingInvalidated",
-      "similarSwingRetracePct",
-    ]);
-    if (missing) return missing;
-    if (!isDisplacement(c)) return fail("displacement != Yes");
-    if (c.trend === "ranging") return fail("trend is ranging — no directional structure to break");
-    const resolved = requireSwings(ctx, c, 2);
-    if ("outcome" in resolved) return resolved.outcome;
-    const swings = resolved.swings;
-    const bullish = c.trend === "bullish";
-    const level = bullish ? Math.max(...swings.highs) : Math.min(...swings.lows);
-    if (bullish ? c.close! <= level : c.close! >= level) {
-      return fail("displacement candle did not break prior swing in trend direction");
-    }
-    const impulse = bullish ? c.high! - level : level - c.low!;
-    for (let k = 1; k <= 4; k++) {
-      const r = at(ctx, i + k);
-      if (!valid(r)) continue;
-      const touched = bullish ? r.low! <= level : r.high! >= level;
-      if (!touched) continue;
-      if (r.isReliable === undefined) return fail("missing field: is_reliable (retest candle)");
-      if (!r.isReliable) return fail(`retest candle at +${k} has is_reliable = false`);
-      if (r.swingInvalidated === undefined)
-        return fail("missing field: swing_invalidated (retest candle)");
-      if (r.swingInvalidated) return fail("swing_invalidated = true at retest");
-      const retrace =
-        impulse > 0
-          ? ((bullish ? c.high! - r.low! : r.high! - c.low!) / impulse) * 100
-          : 0;
-      const target = c.similarSwingRetracePct!;
-      const band = Math.abs(target) * 0.5 + 10;
-      if (Math.abs(retrace - target) > band) {
-        return fail(
-          `retrace ${retrace.toFixed(1)}% outside similar_swing_retrace_pct range (${target}% ±${band.toFixed(1)})`,
-        );
+    if (!reliable(c)) return fail("is_reliable = false");
+    const atrValue = requireAtr(ctx, i);
+    if (!isAtr(atrValue)) return atrValue;
+    const buffer = BUFFER_ATR * atrValue;
+
+    for (let b = i - 1; b >= 0 && b >= i - RETEST_WINDOW; b--) {
+      const bos = at(ctx, b);
+      if (!valid(bos)) continue;
+
+      const highs = confirmedBefore(ctx.pivotHighs, b);
+      const brokenHigh = [...highs].reverse().find((p) => bos.close! > p.price);
+      if (brokenHigh && !isConsumed(ctx, ID, levelKey("bos-high", brokenHigh.price))) {
+        const level = brokenHigh.price;
+        if (c.low! <= level + buffer) {
+          if (!(c.close! > level)) {
+            return fail(`retest of ${level.toFixed(3)} closed back below the broken level`);
+          }
+          const entry = c.close!;
+          const sl = Math.min(c.low!, level) - 0.1 * atrValue;
+          const tp = targetAbove(ctx, i, entry) ?? entry + 2 * (entry - sl);
+          if (!(tp > entry)) return fail("no structure target above the retest close");
+          consume(ctx, ID, levelKey("bos-high", level));
+          return pass(
+            `bullish BOS above ${level.toFixed(3)} (${bos.datetime}) with retest`,
+            "long",
+            entry,
+            sl,
+            tp,
+          );
+        }
       }
-      const entry = bullish ? r.high! : r.low!;
-      const sl = bullish ? r.low! : r.high!;
-      const tp =
-        (bullish ? structureAbove(swings, entry) : structureBelow(swings, entry)) ??
-        (bullish ? entry + impulse : entry - impulse);
-      return pass(
-        `broke swing ${level} with reliable retest at +${k}`,
-        bullish ? "long" : "short",
-        entry,
-        sl,
-        tp,
-      );
+
+      const lows = confirmedBefore(ctx.pivotLows, b);
+      const brokenLow = [...lows].reverse().find((p) => bos.close! < p.price);
+      if (brokenLow && !isConsumed(ctx, ID, levelKey("bos-low", brokenLow.price))) {
+        const level = brokenLow.price;
+        if (c.high! >= level - buffer) {
+          if (!(c.close! < level)) {
+            return fail(`retest of ${level.toFixed(3)} closed back above the broken level`);
+          }
+          const entry = c.close!;
+          const sl = Math.max(c.high!, level) + 0.1 * atrValue;
+          const tp = targetBelow(ctx, i, entry) ?? entry - 2 * (sl - entry);
+          if (!(tp < entry)) return fail("no structure target below the retest close");
+          consume(ctx, ID, levelKey("bos-low", level));
+          return pass(
+            `bearish BOS below ${level.toFixed(3)} (${bos.datetime}) with retest`,
+            "short",
+            entry,
+            sl,
+            tp,
+          );
+        }
+      }
     }
-    return fail("no retest within 1-4 candles");
+
+    return fail(`no break of structure with a retest within ${RETEST_WINDOW} bars`);
   },
 };
